@@ -48,8 +48,16 @@ def upload_image(request):
     pass
 
 def entities(request):
-    # Handle entity display logic here
-    return render(request, 'entities.html')
+    extracted_text = request.session.get('extracted_text', '')
+    entities_json = request.session.get('entities', '[]')
+    entities = json.loads(entities_json)
+    document_type = request.session.get('document_type', 'Unknown')
+    return render(request, 'detected_entities.html', {
+        'extracted_text': extracted_text,
+        'entities': entities,
+        'document_type': document_type
+    })
+
 
 from django.shortcuts import render, redirect
 from django.core.mail import send_mail
@@ -88,48 +96,32 @@ def contact_view(request):
 def success_view(request):
     return render(request, 'success.html')
 
-from rest_framework import generics
-from .models import UploadedImage
-from .serializers import UploadedImageSerializer
+from rest_framework.response import Response
+from rest_framework.decorators import api_view
+from .utils import extract_text_and_entities
 
-class UploadedImageListCreate(generics.ListCreateAPIView):
-    queryset = UploadedImage.objects.all()
-    serializer_class = UploadedImageSerializer
-
-class UploadedImageDetail(generics.RetrieveUpdateDestroyAPIView):
-    queryset = UploadedImage.objects.all()
-    serializer_class = UploadedImageSerializer
-
-
+@api_view(['POST'])
 def upload_image(request):
     if request.method == 'POST':
         document_type = request.POST.get('document_type')
         image_file = request.FILES.get('image')
         if image_file:
             try:
-                # Save image file
-                file_path = default_storage.save(image_file.name, ContentFile(image_file.read()))
-                full_file_path = os.path.join(settings.MEDIA_ROOT, file_path)
-
-                # Process the image with AWS Textract
-                with open(full_file_path, 'rb') as document:
-                    image_bytes = document.read()
-
-                textract_response = textract_client.detect_document_text(Document={'Bytes': image_bytes})
-
-                extracted_text = ''
-                for item in textract_response.get('Blocks', []):
-                    if item.get('BlockType') == 'LINE':
-                        extracted_text += item.get('Text', '') + '\n'
+                # Extract text and entities from the image
+                extracted_text, detected_entities = extract_text_and_entities(image_file)
+            # Initialize df with an empty DataFrame
+                df = pd.DataFrame()
 
                 # Detect entities using Comprehend
                 comprehend_response = comprehend_client.detect_entities(Text=extracted_text, LanguageCode='en')
-                df = pd.DataFrame(comprehend_response['Entities'])
+                if comprehend_response.get('Entities'):
+                    df = pd.DataFrame(comprehend_response['Entities'])    
 
                 phone_pattern = re.compile(r'\+?\d[\d -]{8,}\d')
                 email_pattern = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
                 website_pattern = re.compile(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+|www\.[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
                 postal_code_pattern = re.compile(r'\b\d{6}\b')
+
 
                 def identify_entity(row):
                     text = row['Text']
@@ -156,7 +148,8 @@ def upload_image(request):
 
                 return JsonResponse({
                     'extracted_text': extracted_text,
-                    'show_entities_button': True
+                    'show_entities_button': True,
+                    'entities':detected_entities,
                 })
             except Exception as e:
                 print(f"Error processing image: {e}")
@@ -165,13 +158,19 @@ def upload_image(request):
             return JsonResponse({'error': 'No image file provided.'})
     return JsonResponse({'error': 'Invalid request method.'})
 
+    
 def entities(request):
     extracted_text = request.session.get('extracted_text', '')
     entities_json = request.session.get('entities', '[]')
     entities = json.loads(entities_json)
     document_type = request.session.get('document_type', 'Unknown')
+    
+    # Debugging: print entities to check their content
+    print("Detected Entities:", entities)
+    
     return render(request, 'detected_entities.html', {
         'extracted_text': extracted_text,
         'entities': entities,
         'document_type': document_type
     })
+
