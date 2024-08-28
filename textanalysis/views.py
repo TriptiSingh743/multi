@@ -19,14 +19,14 @@ aws_secret_access_key = os.getenv("AWS_SECRET_KEY")
 # Initialize Textract and Comprehend clients
 textract_client = boto3.client(
     'textract',
-    region_name='us-east-1',
+    region_name='us-west-2',
     aws_access_key_id=aws_access_key_id,
     aws_secret_access_key=aws_secret_access_key
 )
 
 comprehend_client = boto3.client(
     'comprehend',
-    region_name='us-east-1',
+    region_name='us-west-2',
     aws_access_key_id=aws_access_key_id,
     aws_secret_access_key=aws_secret_access_key
 )

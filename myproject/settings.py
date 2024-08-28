@@ -66,7 +66,7 @@ WSGI_APPLICATION = 'myproject.wsgi.application'
 # }
 
 DATABASES = {
-    'default': dj_database_url.config(default=database_url)
+    'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
 }
 
 
