@@ -165,8 +165,6 @@ def entities(request):
     entities = json.loads(entities_json)
     document_type = request.session.get('document_type', 'Unknown')
     
-    # Debugging: print entities to check their content
-    print("Detected Entities:", entities)
     
     return render(request, 'detected_entities.html', {
         'extracted_text': extracted_text,
