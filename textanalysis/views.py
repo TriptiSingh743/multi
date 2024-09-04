@@ -1,14 +1,15 @@
-from django.shortcuts import render
-from django.core.files.storage import default_storage
-from django.core.files.base import ContentFile
-from django.conf import settings
-import os
-import boto3
-import json
-import re
-import pandas as pd
+from django.shortcuts import render, redirect
 from django.http import JsonResponse
+from django.conf import settings
+from .forms import ContactForm
+import os
+import json
+import pandas as pd
+import re
+import boto3
 from dotenv import load_dotenv
+from twilio.rest import Client
+
 
 load_dotenv()
 
@@ -31,8 +32,6 @@ comprehend_client = boto3.client(
     aws_secret_access_key=aws_secret_access_key
 )
 
-from django.shortcuts import render
-
 def home(request):
     return render(request, 'home.html')
 
@@ -40,12 +39,100 @@ def home(request):
 def document_type_selection(request):
     return render(request, 'types.html')
 
+
 def upload_page(request):
     return render(request, 'upload_page.html')
 
+# Initialize Textract and Comprehend clients
+textract_client = boto3.client('textract')
+comprehend_client = boto3.client('comprehend')
+
+from django.shortcuts import render
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+from django.conf import settings
+import os
+import boto3
+import json
+import re
+import pandas as pd
+from django.http import JsonResponse
+from dotenv import load_dotenv
+from .utils import (
+    extract_text_from_image,
+    process_passport,
+    process_identity_card,
+    process_aadhar_card,
+    process_payment_receipt
+)
+from rest_framework.decorators import api_view
+
+
+from rest_framework.response import Response
+from rest_framework import status
+from .serializers import UploadedImageSerializer
+from .models import UploadedImage
+
+from django.core.exceptions import ValidationError
+
+def validate_image_format(image):
+    valid_image_formats = ['image/jpeg', 'image/png']
+    if image.content_type not in valid_image_formats:
+        raise ValidationError('Unsupported file format. Please upload a JPEG or PNG image.')
+
+
+from rest_framework import status
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from .models import UploadedImage
+from .serializers import UploadedImageSerializer
+import boto3
+from django.conf import settings
+import os
+
+
+@api_view(['POST'])
 def upload_image(request):
-    # Handle image upload logic here
-    pass
+    if 'image' not in request.FILES:
+        return Response({"error": "No image file provided."}, status=status.HTTP_400_BAD_REQUEST)
+    
+    image = request.FILES['image']
+    try:
+        # Save image to the server
+        uploaded_image = UploadedImage(image=image)
+        uploaded_image.save()
+        
+        # Extract text from the image
+        image_path = uploaded_image.image.path
+        extracted_text = extract_text_from_image(image_path)
+        
+        # Process extracted text based on document type
+        document_type = request.data.get('document_type', 'unknown')  # Default to 'passport'
+        if document_type == 'passport':
+            entities = process_passport(extracted_text)
+        elif document_type == 'identity_card':
+            entities = process_identity_card(extracted_text)
+        elif document_type == 'aadhar_card':
+            entities = process_aadhar_card(extracted_text)
+        elif document_type == 'payment_receipt':
+            entities = process_payment_receipt(extracted_text)
+        else:
+            return Response({"error": "Invalid document type provided."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Return response with extracted text and entities
+        response_data = {
+            "id": uploaded_image.id,
+            "image": uploaded_image.image.url,
+            "uploaded_at": uploaded_image.uploaded_at.isoformat(),
+            "extracted_text": extracted_text,
+            "detected_entities": entities,
+            'show_entities_button': True,
+        }
+        return Response(response_data, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 def entities(request):
     extracted_text = request.session.get('extracted_text', '')
@@ -57,15 +144,6 @@ def entities(request):
         'entities': entities,
         'document_type': document_type
     })
-
-
-from django.shortcuts import render, redirect
-from django.core.mail import send_mail
-from .forms import ContactForm
-from twilio.rest import Client
-from django.conf import settings
-from django.shortcuts import render, redirect
-from .forms import ContactForm
 
 def contact_view(request):
     if request.method == 'POST':
@@ -82,7 +160,6 @@ def contact_view(request):
                 body=sms_message,
                 from_=os.getenv('TWILIO_PHONE_NUMBER'),
                 to=os.getenv('ADMIN_PHONE_NUMBER')
-
             )
 
             return redirect('success')  # Redirect to a success page
@@ -95,80 +172,3 @@ def contact_view(request):
 
 def success_view(request):
     return render(request, 'success.html')
-
-from rest_framework.response import Response
-from rest_framework.decorators import api_view
-from .utils import extract_text_and_entities
-
-@api_view(['POST'])
-def upload_image(request):
-    if request.method == 'POST':
-        document_type = request.POST.get('document_type')
-        image_file = request.FILES.get('image')
-        if image_file:
-            try:
-                # Extract text and entities from the image
-                extracted_text, detected_entities = extract_text_and_entities(image_file)
-            # Initialize df with an empty DataFrame
-                df = pd.DataFrame()
-
-                # Detect entities using Comprehend
-                comprehend_response = comprehend_client.detect_entities(Text=extracted_text, LanguageCode='en')
-                if comprehend_response.get('Entities'):
-                    df = pd.DataFrame(comprehend_response['Entities'])    
-
-                phone_pattern = re.compile(r'\+?\d[\d -]{8,}\d')
-                email_pattern = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
-                website_pattern = re.compile(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+|www\.[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
-                postal_code_pattern = re.compile(r'\b\d{6}\b')
-
-
-                def identify_entity(row):
-                    text = row['Text']
-                    if row['Type'] in ['PERSON', 'ORGANIZATION', 'LOCATION']:
-                        return row['Type']
-                    elif phone_pattern.search(text):
-                        return 'PHONE_NUMBER'
-                    elif email_pattern.search(text):
-                        return 'EMAIL'
-                    elif website_pattern.search(text):
-                        return 'WEBSITE'
-                    elif postal_code_pattern.search(text):
-                        return 'POSTAL_CODE'
-                    else:
-                        return 'OTHER'
-
-                df['Type'] = df.apply(identify_entity, axis=1)
-                df = df[['Score', 'Type', 'Text', 'BeginOffset', 'EndOffset']]
-
-                # Store data in session
-                request.session['extracted_text'] = extracted_text
-                request.session['entities'] = json.dumps(df.to_dict(orient='records'))
-                request.session['document_type'] = document_type
-
-                return JsonResponse({
-                    'extracted_text': extracted_text,
-                    'show_entities_button': True,
-                    'entities':detected_entities,
-                })
-            except Exception as e:
-                print(f"Error processing image: {e}")
-                return JsonResponse({'error': 'There was an error processing the image.'})
-        else:
-            return JsonResponse({'error': 'No image file provided.'})
-    return JsonResponse({'error': 'Invalid request method.'})
-
-    
-def entities(request):
-    extracted_text = request.session.get('extracted_text', '')
-    entities_json = request.session.get('entities', '[]')
-    entities = json.loads(entities_json)
-    document_type = request.session.get('document_type', 'Unknown')
-    
-    
-    return render(request, 'detected_entities.html', {
-        'extracted_text': extracted_text,
-        'entities': entities,
-        'document_type': document_type
-    })
-

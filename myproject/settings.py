@@ -24,7 +24,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'textanalysis',  # Replace 'yourapp' with your app's name
-    'rest_framework',
+    'rest_framework'
 ]
 
 MIDDLEWARE = [

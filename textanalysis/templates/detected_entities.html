@@ -81,15 +81,16 @@
                 <table>
                 <thead>
                    <tr>
-                      <th>Score</th>
+                      
                       <th>Type</th>
                       <th>Text</th>
                       <th>Begin Offset</th>
-                      <th>End Offset</th>
+                      <th>End Offset</th><th>Score</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for entity in entities %}
+                    
                     <tr>
                       <td>{{ entity.Score }}</td>
                       <td>{{ entity.Type }}</td>
