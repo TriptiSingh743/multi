@@ -101,6 +101,10 @@ def process_identity_card(extracted_text):
     dob_pattern = re.compile(r'\b\d{2}-\d{2}-\d{4}\b')
     sex_pattern = re.compile(r'\b(M|F)\b')
     country_of_birth_pattern = re.compile(r'\b(INDIA|MALAYSIA|SINGAPORE|[A-Z][a-z]+(?:\s[A-Z][a-z]+)*)\b')
+    phone_pattern = re.compile(r'\+?\d[\d -]{8,}\d')
+    email_pattern = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
+    website_pattern = re.compile(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+|www\.[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
+    postal_code_pattern = re.compile(r'\b\d{6}\b')
 
     comprehend_response = comprehend_client.detect_entities(Text=extracted_text, LanguageCode='en')
     df = pd.DataFrame(comprehend_response['Entities'])
@@ -119,6 +123,14 @@ def process_identity_card(extracted_text):
             return 'SEX'
         elif country_of_birth_pattern.search(text):
             return 'COUNTRY_OF_BIRTH'
+        elif phone_pattern.search(text):
+             return 'PHONE_NUMBER'
+        elif email_pattern.search(text):
+             return 'EMAIL'
+        elif website_pattern.search(text):
+             return 'WEBSITE'
+        elif postal_code_pattern.search(text):
+             return 'POSTAL_CODE'
         else:
             return 'OTHER'
 
@@ -133,7 +145,11 @@ def process_identity_card(extracted_text):
         "RACE": None,
         "DATE_OF_BIRTH": None,
         "SEX": None,
-        "COUNTRY_OF_BIRTH": None
+        "COUNTRY_OF_BIRTH": None,
+        'PHONE_NUMBER':None,
+        'EMAIL':None,
+        'WEBSITE':None,
+        'POSTAL_CODE':None
     }
 
     for _, row in df.iterrows():
