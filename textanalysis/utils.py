@@ -95,12 +95,14 @@ def process_passport(extracted_text):
 
 # Processing for Identity Card
 def process_identity_card(extracted_text):
+    comprehend_response = comprehend_client.detect_entities(Text=extracted_text, LanguageCode='en')
+    df = pd.DataFrame(comprehend_response['Entities'])
+
     card_number_pattern = re.compile(r'\b[SFG]\d{7}[A-Z]?\b')
-    name_pattern = re.compile(r'\b[A-Z]+\s[A-Z]+\b')
     race_pattern = re.compile(r'\b(INDIAN|CHINESE|MALAY|OTHER)\b', re.IGNORECASE)
     dob_pattern = re.compile(r'\b\d{2}-\d{2}-\d{4}\b')
     sex_pattern = re.compile(r'\b(M|F)\b')
-    country_of_birth_pattern = re.compile(r'\b(INDIA|MALAYSIA|SINGAPORE|[A-Z][a-z]+(?:\s[A-Z][a-z]+)*)\b')
+    location_pattern = re.compile(r'\b(INDIA|MALAYSIA|SINGAPORE|[A-Z][a-z]+(?:\s[A-Z][a-z]+)*)\b')
     phone_pattern = re.compile(r'\+?\d[\d -]{8,}\d')
     email_pattern = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
     website_pattern = re.compile(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+|www\.[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
@@ -108,21 +110,20 @@ def process_identity_card(extracted_text):
 
     comprehend_response = comprehend_client.detect_entities(Text=extracted_text, LanguageCode='en')
     df = pd.DataFrame(comprehend_response['Entities'])
-
     def identify_entity(row):
         text = row['Text']
-        if card_number_pattern.search(text):
+        if row['Type'] in ['PERSON', 'ORGANIZATION']:
+            return row['Type']
+        elif card_number_pattern.search(text):
             return 'IDENTITY_CARD_NUMBER'
-        elif name_pattern.search(text):
-            return 'NAME'
         elif race_pattern.search(text):
             return 'RACE'
         elif dob_pattern.search(text):
             return 'DATE_OF_BIRTH'
         elif sex_pattern.search(text):
             return 'SEX'
-        elif country_of_birth_pattern.search(text):
-            return 'COUNTRY_OF_BIRTH'
+        elif location_pattern.search(text):
+            return 'LOCATION'
         elif phone_pattern.search(text):
              return 'PHONE_NUMBER'
         elif email_pattern.search(text):
@@ -145,7 +146,7 @@ def process_identity_card(extracted_text):
         "RACE": None,
         "DATE_OF_BIRTH": None,
         "SEX": None,
-        "COUNTRY_OF_BIRTH": None,
+        "LOCATION": None,
         'PHONE_NUMBER':None,
         'EMAIL':None,
         'WEBSITE':None,
@@ -160,6 +161,9 @@ def process_identity_card(extracted_text):
 
 # Processing for Aadhaar Card
 def process_aadhar_card(extracted_text):
+    comprehend_response = comprehend_client.detect_entities(Text=extracted_text, LanguageCode='en')
+    df = pd.DataFrame(comprehend_response['Entities'])
+
     aadhar_number_pattern = re.compile(r'\b\d{4}\s?\d{4}\s?\d{4}\b')
     vid_number_pattern = re.compile(r'\b\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\b')
     dob_pattern = re.compile(r'\b\d{2}/\d{2}/\d{4}\b')
