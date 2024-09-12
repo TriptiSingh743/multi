@@ -62,7 +62,6 @@ def document_type_selection(request):
 def upload_page(request):
     return render(request, 'upload_page.html')
 
-# Handle image upload and process extracted text
 @api_view(['POST'])
 def upload_image(request):
     if request.method == 'POST':
@@ -109,6 +108,8 @@ def upload_image(request):
             # Redirect to the results page
             return redirect('extracted_text_page')
         
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
