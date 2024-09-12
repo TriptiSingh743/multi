@@ -93,7 +93,7 @@
                         if (response.error) {
                             alert(response.error);
                         } else {
-                            // Redirect to the extracted_text page
+                            // Redirect to the extracted_text page after successful upload and processing
                             window.location.href = '{% url "extracted_text_page" %}';
                         }
                     },
@@ -105,7 +105,6 @@
                 });
             });
         });
-        
     </script>
     
     <footer>

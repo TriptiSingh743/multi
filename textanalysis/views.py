@@ -62,58 +62,57 @@ def document_type_selection(request):
 def upload_page(request):
     return render(request, 'upload_page.html')
 
+from rest_framework import status
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from .models import UploadedImage
+from .serializers import UploadedImageSerializer
+import boto3
+from django.conf import settings
+import os
+
+
 @api_view(['POST'])
 def upload_image(request):
-    if request.method == 'POST':
-        images = request.FILES.getlist('image')
-        if not images:
-            return Response({"error": "No image file provided."}, status=status.HTTP_400_BAD_REQUEST)
-
-        extracted_data = []
+    if 'image' not in request.FILES:
+        return Response({"error": "No image file provided."}, status=status.HTTP_400_BAD_REQUEST)
+    
+    image = request.FILES['image']
+    try:
+        # Save image to the server
+        uploaded_image = UploadedImage(image=image)
+        uploaded_image.save()
         
-        try:
-            for image in images:
-                validate_image_format(image)
-                
-                # Save image to the server
-                uploaded_image = UploadedImage(image=image)
-                uploaded_image.save()
-
-                # Extract text from the image
-                image_path = uploaded_image.image.path
-                extracted_text = extract_text_from_image(image_path)
-                
-                # Process extracted text based on document type
-                document_type = request.data.get('document_type', 'unknown')
-                if document_type == 'passport':
-                    entities = process_passport(extracted_text)
-                elif document_type == 'identity_card':
-                    entities = process_identity_card(extracted_text)
-                elif document_type == 'aadhar_card':
-                    entities = process_aadhar_card(extracted_text)
-                elif document_type == 'payment_receipt':
-                    entities = process_payment_receipt(extracted_text)
-                else:
-                    return Response({"error": "Invalid document type provided."}, status=status.HTTP_400_BAD_REQUEST)
-
-                extracted_data.append({
-                    "name": uploaded_image.image.name,
-                    "extracted_text": extracted_text,
-                    "detected_entities": entities
-                })
-
-            # Save extracted data in the session for redirection to the results page
-            request.session['extracted_data'] = extracted_data
-
-            # Redirect to the results page
-            return redirect('extracted_text_page')
+        # Extract text from the image
+        image_path = uploaded_image.image.path
+        extracted_text = extract_text_from_image(image_path)
         
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    return Response({"error": "Invalid request method."}, status=status.HTTP_400_BAD_REQUEST)
+        # Process extracted text based on document type
+        document_type = request.data.get('document_type', 'unknown')  # Default to 'passport'
+        if document_type == 'passport':
+            entities = process_passport(extracted_text)
+        elif document_type == 'identity_card':
+            entities = process_identity_card(extracted_text)
+        elif document_type == 'aadhar_card':
+            entities = process_aadhar_card(extracted_text)
+        elif document_type == 'payment_receipt':
+            entities = process_payment_receipt(extracted_text)
+        else:
+            return Response({"error": "Invalid document type provided."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Return response with extracted text and entities
+        response_data = {
+            "id": uploaded_image.id,
+            "image": uploaded_image.image.url,
+            "uploaded_at": uploaded_image.uploaded_at.isoformat(),
+            "extracted_text": extracted_text,
+            "detected_entities": entities,
+            'show_entities_button': True,
+        }
+        return Response(response_data, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # Page to display extracted text for each uploaded image
 def extracted_text_page(request):
