@@ -1,33 +1,32 @@
 $(document).ready(function() {
-    $('#upload-form').on('submit', function(event) {
-        event.preventDefault(); // Prevent the form from submitting the traditional way
+    $('#upload-form').on('submit', function(e) {
+        e.preventDefault();
+        
+        $('#please-wait').show(); // Show the "Please wait" message
 
         var formData = new FormData(this);
 
         $.ajax({
-            url: $(this).attr('action'),
             type: 'POST',
+            url: '{% url "upload_image" %}',  // Keep the upload URL
             data: formData,
-            processData: false,
             contentType: false,
+            processData: false,
             success: function(response) {
-                $('#extracted-text').text(response.text);
-                $('#results').show();
-                if (response.entities.length > 0) {
-                    $('#view-entities-btn').show().on('click', function() {
-                        // Redirect to the page showing detected entities
-                        window.location.href = "{% url 'detected_entities' %}";
-                    });
+                $('#please-wait').hide(); // Hide the "Please wait" message
+                
+                if (response.error) {
+                    alert(response.error);
                 } else {
-                    $('#view-entities-btn').hide();
+                    // Redirect to the extracted_text page
+                    window.location.href = '{% url "extracted_text" %}';
                 }
             },
             error: function(xhr, status, error) {
-                alert('Error: ' + error);
+                $('#please-wait').hide(); // Hide the "Please wait" message on error
+                console.log(xhr.responseText);
+                alert('An error occurred. Please try again.');
             }
         });
     });
 });
-
-
-

@@ -60,7 +60,7 @@
                     {% csrf_token %}
                     <input type="hidden" id="document-type" name="document_type" value="{{ request.GET.document_type }}">
                     <div class="form-group">
-                        <input type="file" id="image" name="image" accept="image/*" required>
+                        <input type="file" id="image" name="image" accept="image/*" multiple required>
                     </div>
                     <button type="submit">Submit</button>
                 </form>
@@ -71,16 +71,6 @@
     <div id="please-wait" style="display:none;">
         <p>Please wait a few moments while we process your image.</p>
     </div>
-
-    <div class="container"> 
-        <div id="results" style="display:none;">
-            <h2>Extracted Text</h2>
-            <div id="extracted-text-container">
-                <pre id="extracted-text"></pre>
-            </div>
-            <button id="view-entities-btn" style="display:none;">View Detected Entities</button>
-        </div>
-    </div>
     
     <script>
         $(document).ready(function() {
@@ -88,13 +78,12 @@
                 e.preventDefault();
                 
                 $('#please-wait').show(); // Show the "Please wait" message
-                $('#results').hide();     // Hide the results section
-                
+        
                 var formData = new FormData(this);
-
+        
                 $.ajax({
                     type: 'POST',
-                    url: '{% url "upload_image" %}',
+                    url: '{% url "upload_image" %}',  // Keep the upload URL
                     data: formData,
                     contentType: false,
                     processData: false,
@@ -104,13 +93,8 @@
                         if (response.error) {
                             alert(response.error);
                         } else {
-                            $('#results').show();
-                            $('#extracted-text').text(response.extracted_text);
-                            if (response.show_entities_button) {
-                                $('#view-entities-btn').show().click(function() {
-                                    window.location.href = '{% url "entities" %}';
-                                });
-                            }
+                            // Redirect to the extracted_text page
+                            window.location.href = '{% url "extracted_text_page" %}';
                         }
                     },
                     error: function(xhr, status, error) {
@@ -121,6 +105,7 @@
                 });
             });
         });
+        
     </script>
     
     <footer>
